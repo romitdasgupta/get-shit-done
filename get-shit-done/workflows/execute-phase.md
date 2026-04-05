@@ -740,6 +740,39 @@ Selected wave finished successfully. This phase still has incomplete plans, so p
 - this means the selected wave happened to be the last remaining work in the phase
 </step>
 
+<step name="code_review_gate" required="true">
+**This step is REQUIRED and must not be skipped.** Auto-invoke code review on the phase's source changes. Advisory only — never blocks execution flow.
+
+**Config gate:**
+```bash
+CODE_REVIEW_ENABLED=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-get workflow.code_review 2>/dev/null || echo "true")
+```
+
+If `CODE_REVIEW_ENABLED` is `"false"`: display "Code review skipped (workflow.code_review=false)" and proceed to next step.
+
+**Invoke review:**
+```
+Skill(skill="gsd:code-review", args="${PHASE_NUMBER}")
+```
+
+**Check results using deterministic path (not glob):**
+```bash
+PADDED=$(printf "%02d" "${PHASE_NUMBER}")
+REVIEW_FILE="${PHASE_DIR}/${PADDED}-REVIEW.md"
+REVIEW_STATUS=$(sed -n '/^---$/,/^---$/p' "$REVIEW_FILE" | grep "^status:" | head -1 | cut -d: -f2 | tr -d ' ')
+```
+
+If REVIEW_STATUS is not "clean" and not "skipped" and not empty, display:
+```
+Code review found issues. Consider running:
+/gsd-code-review-fix ${PHASE_NUMBER}
+```
+
+**Error handling:** If the Skill invocation fails or throws, catch the error, display "Code review encountered an error (non-blocking): {error}" and proceed to next step. Review failures must never block execution.
+
+Regardless of review result, ALWAYS proceed to close_parent_artifacts → regression_gate → verify_phase_goal.
+</step>
+
 <step name="close_parent_artifacts">
 **For decimal/polish phases only (X.Y pattern):** Close the feedback loop by resolving parent UAT and debug artifacts.
 
